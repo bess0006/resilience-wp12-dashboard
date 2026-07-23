@@ -54,6 +54,19 @@
     background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;
   }
   .refresh:hover{background:rgba(255,255,255,.2);}
+  .meta{font-size:12px;color:rgba(255,255,255,.7);font-variant-numeric:tabular-nums;}
+  .meta::before{content:"·";margin-right:8px;opacity:.5;}
+
+  .errbox{
+    background:#fdf5f3;border:1px solid #edcbc2;border-left:4px solid #b2543a;
+    border-radius:var(--radius);padding:14px 18px;margin-bottom:var(--gap);
+  }
+  .errbox h4{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#8c3a26;margin-bottom:8px;}
+  .errbox ul{list-style:none;font-size:13px;}
+  .errbox li{padding:2px 0;}
+  .errbox li b{color:#8c3a26;}
+  .errbox li code{font-family:Consolas,"Courier New",monospace;font-size:12px;color:var(--ink-soft);}
+  .errbox .hint{font-size:12px;color:var(--ink-soft);margin-top:9px;line-height:1.5;}
 
   .filters{
     background:var(--card);border-radius:var(--radius);padding:14px 18px;margin-bottom:var(--gap);
@@ -138,8 +151,12 @@
     <div class="row">
       <span class="badge" id="src-badge">Loading&hellip;</span>
       <button class="refresh" id="btn-refresh">&#8635; Refresh data</button>
+      <span class="meta" id="last-updated"></span>
+      <span class="meta" id="countdown"></span>
     </div>
   </header>
+
+  <section class="errbox" id="errbox" hidden></section>
 
   <section class="filters" aria-label="Filters">
     <div class="fg"><label for="f-tab">Sheet</label><select id="f-tab"></select></div>
@@ -209,14 +226,27 @@ const TABS = [
   {gid:"910877652",  name:"Personal contacts"}
 ];
 
-/* Consortium partners — paste here the full list from Karla's dropdown
-   (open the sheet, click a cell in the Partner column, copy the options).
+/* Partner list source.
+   CSV export does NOT expose a cell's dropdown (data-validation) rules, so the
+   list cannot be read from the Partner column itself. Two ways to load it
+   from the sheet instead of hardcoding:
+     a) ask the WP lead to add a tab listing partners (one per row, with a
+        heading containing "partner"), then put its gid here — new partners
+        then appear automatically, with no code change;
+     b) leave gid empty: partners are discovered from the recorded rows, plus
+        the fallback list below. */
+const PARTNERS_TAB = { gid: "", headerMatch: /partner/i };
+
+/* Fallback list — used when no partners tab is configured or it cannot be read.
    Partners listed here always appear in the filter and in the per-partner
    chart, even with 0 recorded activities — useful for monitoring coverage. */
-const PARTNER_LIST = [
+const PARTNER_FALLBACK = [
   "FSCIRE", "X-officio", "EPHE", "TUA", "RESILIENCE WP12", "UM", "INFAI",
   "UNISOFIA", "UNSA", "VOLOS", "CINECA", "UFO", "UL"
 ];
+
+/* Auto-refresh interval, in minutes */
+const REFRESH_MINUTES = 10;
 /* ═════════════════════════════════════════════ */
 
 /* Official EU Portal categories from the sheet's dropdowns */
@@ -232,9 +262,9 @@ const DISS_CATEGORIES = [
 ];
 
 const csvUrl=gid=>"https://docs.google.com/spreadsheets/d/"+SHEET_ID+
-  "/gviz/tq?tqx=out:csv&gid="+gid;
+  "/gviz/tq?tqx=out:csv&gid="+gid+"&_cb="+Date.now();
 const csvUrlAlt=gid=>"https://docs.google.com/spreadsheets/d/"+SHEET_ID+
-  "/export?format=csv&gid="+gid;
+  "/export?format=csv&gid="+gid+"&_cb="+Date.now();
 
 /* ── No bundled data: this dashboard shows ONLY live rows from the tracking sheet ── */
 
@@ -315,7 +345,32 @@ const PALETTE=["#123a6d","#f0b429","#2e7fb8","#7a9e3b","#b2543a","#6b5ca5","#3aa
 const parseDate=d=>{const p=d.split(/[\/\-.]/);return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
 
 let ROWS=[];
+let PARTNERS=[...PARTNER_FALLBACK];   // replaced by the sheet's list when available
+let PARTNER_SRC="fallback list";
 const state={tab:"",partner:"",period:"",type:"",cat:"",status:"",sortKey:"date",sortDir:1};
+
+/* Load the partner list from a dedicated tab, when one is configured */
+async function loadPartners(){
+  if(!PARTNERS_TAB.gid)return;
+  try{
+    const res=await fetch(csvUrl(PARTNERS_TAB.gid),{cache:"no-store"});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const text=await res.text();
+    if(/^\s*</.test(text))throw new Error("got HTML instead of CSV");
+    const rows=parseCSV(text).map(r=>r.map(clean));
+    const hIdx=rows.findIndex(r=>r.some(c=>PARTNERS_TAB.headerMatch.test(c)));
+    let vals=[];
+    if(hIdx>=0){
+      const ci=rows[hIdx].findIndex(c=>PARTNERS_TAB.headerMatch.test(c));
+      vals=rows.slice(hIdx+1).map(r=>r[ci]).filter(Boolean);
+    }else{
+      vals=rows.flat().filter(Boolean);
+    }
+    if(vals.length){PARTNERS=[...new Set(vals)];PARTNER_SRC="partners tab";}
+  }catch(e){
+    console.warn("Partner list fetch failed, using fallback:",e);
+  }
+}
 
 /* ── Filters ── */
 const FILTERS=[
@@ -331,7 +386,7 @@ function buildFilters(){
     const sel=$(f.id);
     const cur=state[f.key];
     let opts=uniq(ROWS,f.key);
-    if(f.key==="partner")opts=[...new Set([...PARTNER_LIST,...opts])];
+    if(f.key==="partner")opts=[...new Set([...PARTNERS,...opts])];
     if(f.key==="tab")opts=[...new Set([...TABS.map(t=>t.name),...opts])];
     if(f.key==="cat"){
       const official=state.type==="Communication"?COMM_CATEGORIES
@@ -417,7 +472,7 @@ function updateCharts(data){
   charts.period.update("none");
 
   const pc={};
-  PARTNER_LIST.forEach(p=>pc[p]=0);
+  PARTNERS.forEach(p=>pc[p]=0);
   data.forEach(r=>pc[r.partner]=(pc[r.partner]||0)+1);
   const pSorted=Object.entries(pc).sort((a,b)=>b[1]-a[1]);
   charts.partner.data.labels=pSorted.map(x=>x[0]);
@@ -507,10 +562,32 @@ function setSource(live,msg){
   const b=$("src-badge");
   b.textContent=msg;
   b.className="badge"+(live?" live":"");
-  $("foot-status").textContent=live
-    ? "Live connection to the tracking sheet · refreshed "+new Date().toLocaleTimeString()
-    : "No live data loaded — check that the tracking sheet is shared as \u201CAnyone with the link \u2192 Viewer\u201D";
 }
+
+/* ── Error panel ── */
+function renderErrors(errors){
+  const box=$("errbox");
+  if(!errors.length){box.hidden=true;box.innerHTML="";return;}
+  const hint=location.protocol==="file:"
+    ? "This page is being opened directly from disk (file://), which browsers block from making external requests. Host it (GitHub Pages or any web server) and open it over http(s)."
+    : "Check that the tracking file is shared as \u201CAnyone with the link \u2192 Viewer\u201D, and that each sheet\u2019s gid in the configuration still matches the workbook.";
+  box.hidden=false;
+  box.innerHTML="<h4>"+errors.length+" of "+TABS.length+" sheets could not be read</h4><ul>"+
+    errors.map(e=>`<li><b>${esc(e.name)} sheet failed</b> &nbsp;<code>${esc(e.msg)}</code></li>`).join("")+
+    `</ul><div class="hint">${hint}</div>`;
+}
+
+/* ── Timestamp & countdown ── */
+let lastUpdated=null, nextRefreshAt=0;
+function tick(){
+  $("last-updated").textContent=lastUpdated
+    ? "Last updated "+lastUpdated.toLocaleTimeString()
+    : "";
+  if(!nextRefreshAt){$("countdown").textContent="";return;}
+  const s=Math.max(0,Math.round((nextRefreshAt-Date.now())/1000));
+  $("countdown").textContent="Next refresh in "+Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+}
+setInterval(tick,1000);
 async function fetchTab(t){
   const tryUrl=async u=>{
     const res=await fetch(u,{cache:"no-store"});
@@ -530,31 +607,35 @@ async function fetchTab(t){
 }
 async function loadData(){
   setSource(false,"Loading…");
-  const results=await Promise.all(TABS.map(fetchTab));
+  const [results]=await Promise.all([Promise.all(TABS.map(fetchTab)),loadPartners()]);
   const okCount=results.filter(r=>r.ok).length;
+  const errors=results.map((r,i)=>r.ok?null:{name:TABS[i].name,msg:r.err}).filter(Boolean);
   ROWS=results.flatMap(r=>r.rows);
+
   if(okCount===0){
     setSource(false,"Connection error");
-    const err=(results.find(r=>r.err)||{}).err||"";
-    $("foot-status").textContent="Could not reach the tracking sheet ("+err+"). "
-      +(location.protocol==="file:"
-        ?"You are opening this file directly from disk (file://) — browsers often block external requests here. Host the page (GitHub Pages, web server, or run: python -m http.server) and open it via http(s)."
-        :"Check that the sheet is shared as \u201CAnyone with the link \u2192 Viewer\u201D or published to the web.");
+    $("foot-status").textContent="No sheets could be read — see the details above";
   }else{
     setSource(true,"Live data · "+ROWS.length+" activities · "+okCount+"/"+TABS.length+" sheets");
-    if(ROWS.length===0)$("foot-status").textContent="Connected to the tracking workbook — no activity rows recorded yet";
-    else if(okCount<TABS.length)$("foot-status").textContent+=" · "+(TABS.length-okCount)+" sheet(s) could not be read";
+    $("foot-status").textContent=ROWS.length===0
+      ? "Connected to the tracking workbook — no activity rows recorded yet"
+      : "Partner list from "+PARTNER_SRC+" · refreshes every "+REFRESH_MINUTES+" minutes";
   }
+  renderErrors(errors);
+
+  lastUpdated=new Date();
+  nextRefreshAt=Date.now()+REFRESH_MINUTES*60*1000;
+  tick();
   render();
 }
+
+/* Auto-refresh while the page is open, plus manual and on-return refreshes */
 $("btn-refresh").addEventListener("click",loadData);
+setInterval(loadData, REFRESH_MINUTES*60*1000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) loadData(); });
+
 initCharts();
 loadData();
-/* Auto-refresh: re-fetch the sheet every 10 minutes while the page is open */
-const REFRESH_MINUTES = 10;
-setInterval(loadData, REFRESH_MINUTES*60*1000);
-/* Also refresh immediately when the user returns to the tab */
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden) loadData(); });
 </script>
 </body>
 </html>
