@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RESILIENCE WP12 — Communication &amp; Dissemination Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<style>
+  :root{
+    --eu-blue:#123a6d;
+    --eu-blue-deep:#0c2a50;
+    --eu-gold:#f0b429;
+    --ink:#1c2733;
+    --ink-soft:#5b6b7c;
+    --paper:#eef1f5;
+    --card:#ffffff;
+    --line:#dde3ea;
+    --pos:#1f8a4c;
+    --warn:#b26a00;
+    --radius:10px;
+    --gap:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); padding:20px;
+  }
+  .wrap{max-width:1280px;margin:0 auto;}
+
+  .head{
+    background:linear-gradient(135deg,var(--eu-blue-deep),var(--eu-blue));
+    color:#fff;border-radius:var(--radius);padding:22px 26px;margin-bottom:var(--gap);
+    position:relative;overflow:hidden;
+  }
+  .head::after{
+    content:"";position:absolute;right:-40px;top:-60px;width:260px;height:260px;border-radius:50%;
+    border:34px solid rgba(240,180,41,.14);
+  }
+  .head .eyebrow{
+    font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:var(--eu-gold);
+    font-weight:600;margin-bottom:6px;
+  }
+  .head h1{font-size:22px;font-weight:600;letter-spacing:.2px;}
+  .head .sub{font-size:13px;color:rgba(255,255,255,.75);margin-top:5px;}
+  .head .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .badge{
+    display:inline-block;font-size:11px;font-weight:600;letter-spacing:.6px;
+    padding:4px 10px;border-radius:20px;text-transform:uppercase;
+    background:rgba(240,180,41,.18);border:1px solid rgba(240,180,41,.5);color:var(--eu-gold);
+  }
+  .badge.live{background:rgba(72,199,116,.15);border-color:rgba(72,199,116,.55);color:#7fe0a5;}
+  .refresh{
+    font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;
+    background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;
+  }
+  .refresh:hover{background:rgba(255,255,255,.2);}
+
+  .filters{
+    background:var(--card);border-radius:var(--radius);padding:14px 18px;margin-bottom:var(--gap);
+    display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;
+    box-shadow:0 1px 3px rgba(16,32,54,.08);
+  }
+  .fg{display:flex;flex-direction:column;gap:4px;min-width:150px;flex:1;}
+  .fg label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);}
+  .fg select{
+    padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;
+    background:#fbfcfd;color:var(--ink);cursor:pointer;
+  }
+  .fg select:focus{outline:2px solid var(--eu-blue);outline-offset:1px;}
+  .reset{
+    padding:8px 16px;border:1px solid var(--eu-blue);border-radius:6px;background:transparent;
+    color:var(--eu-blue);font-size:13px;font-weight:600;cursor:pointer;height:36px;
+  }
+  .reset:hover{background:var(--eu-blue);color:#fff;}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--gap);margin-bottom:var(--gap);}
+  .kpi{
+    background:var(--card);border-radius:var(--radius);padding:18px 20px;
+    box-shadow:0 1px 3px rgba(16,32,54,.08);border-top:3px solid var(--eu-blue);
+  }
+  .kpi.gold{border-top-color:var(--eu-gold);}
+  .kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .kpi .val{font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
+  .kpi .note{font-size:12px;color:var(--ink-soft);margin-top:5px;}
+
+  .charts{display:grid;grid-template-columns:1.35fr 1fr;gap:var(--gap);margin-bottom:var(--gap);}
+  .charts2{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:var(--gap);}
+  .panel{
+    background:var(--card);border-radius:var(--radius);padding:18px 20px;
+    box-shadow:0 1px 3px rgba(16,32,54,.08);
+  }
+  .panel h3{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--ink);margin-bottom:14px;}
+  .panel h3 span{color:var(--ink-soft);font-weight:500;text-transform:none;letter-spacing:0;}
+  .ch{position:relative;height:280px;}
+
+  .tbl-panel{background:var(--card);border-radius:var(--radius);padding:18px 20px;box-shadow:0 1px 3px rgba(16,32,54,.08);overflow-x:auto;}
+  .tbl-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .tbl-head h3{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;}
+  .tbl-head .count{font-size:12px;color:var(--ink-soft);}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px;}
+  thead th{
+    text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);font-size:11px;
+    text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);cursor:pointer;
+    white-space:nowrap;user-select:none;
+  }
+  thead th:hover{color:var(--eu-blue);}
+  thead th .arr{font-size:9px;margin-left:3px;}
+  tbody td{padding:9px 10px;border-bottom:1px solid #f0f2f5;vertical-align:top;}
+  tbody tr:hover{background:#f7f9fb;}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;white-space:nowrap;}
+  .pill.comm{background:#e6eef8;color:var(--eu-blue);}
+  .pill.diss{background:#fdf3d7;color:#8a6410;}
+  .pill.ok{background:#e2f2e8;color:var(--pos);}
+  .pill.plan{background:#eceff3;color:var(--ink-soft);}
+  .pill.prog{background:#fdeedd;color:var(--warn);}
+
+  .foot{margin-top:var(--gap);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--ink-soft);padding:0 4px;}
+
+  @media(max-width:900px){
+    .charts,.charts2{grid-template-columns:1fr;}
+    body{padding:10px;}
+  }
+  @media print{
+    .filters{display:none;}
+    body{background:#fff;}
+    .panel,.kpi,.tbl-panel{box-shadow:none;border:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div class="eyebrow">RESILIENCE &middot; Work Package 12</div>
+    <h1>Communication &amp; Dissemination Statistics Dashboard</h1>
+    <div class="sub">Automated monitoring &amp; reporting based on the WP12 Tracking File &mdash; D4.3, Recommendation&nbsp;1</div>
+    <div class="row">
+      <span class="badge" id="src-badge">Loading&hellip;</span>
+      <button class="refresh" id="btn-refresh">&#8635; Refresh data</button>
+    </div>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="fg"><label for="f-tab">Sheet</label><select id="f-tab"></select></div>
+    <div class="fg"><label for="f-partner">Partner</label><select id="f-partner"></select></div>
+    <div class="fg"><label for="f-period">Period</label><select id="f-period"></select></div>
+    <div class="fg"><label for="f-type">Type</label><select id="f-type"></select></div>
+    <div class="fg"><label for="f-cat">Category</label><select id="f-cat"></select></div>
+    <div class="fg"><label for="f-status">Status</label><select id="f-status"></select></div>
+    <button class="reset" id="btn-reset">Reset</button>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><div class="lab">Total activities</div><div class="val" id="k-act">0</div><div class="note" id="k-act-n"></div></div>
+    <div class="kpi gold"><div class="lab">People reached (est.)</div><div class="val" id="k-reach">0</div><div class="note">sum of estimated reach</div></div>
+    <div class="kpi"><div class="lab">Communication</div><div class="val" id="k-comm">0</div><div class="note" id="k-comm-n"></div></div>
+    <div class="kpi"><div class="lab">Dissemination</div><div class="val" id="k-diss">0</div><div class="note" id="k-diss-n"></div></div>
+    <div class="kpi gold"><div class="lab">Active partners</div><div class="val" id="k-part">0</div><div class="note">with &ge;1 activity</div></div>
+  </section>
+
+  <section class="charts">
+    <div class="panel"><h3>Activities by category <span>(EU Portal categories)</span></h3><div class="ch"><canvas id="c-cat"></canvas></div></div>
+    <div class="panel"><h3>Communication vs Dissemination</h3><div class="ch"><canvas id="c-type"></canvas></div></div>
+  </section>
+
+  <section class="charts2">
+    <div class="panel"><h3>Estimated reach per period <span>(by type)</span></h3><div class="ch"><canvas id="c-period"></canvas></div></div>
+    <div class="panel"><h3>Activities per partner</h3><div class="ch"><canvas id="c-partner"></canvas></div></div>
+  </section>
+
+  <section class="tbl-panel">
+    <div class="tbl-head">
+      <h3>Activity log</h3>
+      <span class="count" id="t-count"></span>
+    </div>
+    <table id="tbl">
+      <thead><tr id="tbl-hd"></tr></thead>
+      <tbody id="tbl-bd"></tbody>
+    </table>
+  </section>
+
+  <footer class="foot">
+    <span>Data source: <strong>WP12 Tracking File — Communication/Dissemination Activities</strong> (Google Sheets)</span>
+    <span id="foot-status"></span>
+  </footer>
+</div>
+
+<script>
+/* ═══════════════ CONFIGURATION ═══════════════
+   1. In Google Sheets: Share → "Anyone with the link" → Viewer
+      (the data becomes readable by anyone holding the link — WP12
+      dissemination stats are public deliverable data, but confirm with WP lead)
+   2. Put the spreadsheet ID below (the long string in the sheet URL)
+   3. All 7 activity tabs are read and merged automatically (see TABS below) */
+const SHEET_ID   = "11YT8w6KMAn3nCrWVX2we6zsJnh8nguSCCZYJmwb7TJQ";
+
+/* All tabs of the tracking workbook — one per activity type.
+   The dashboard fetches and merges ALL of them.
+   NOTE: names for the last three gids follow the tab order in the sheet —
+   verify they match and swap the labels here if needed. */
+const TABS = [
+  {gid:"0",          name:"Communication Activities"},
+  {gid:"337220743",  name:"Events and Attendance"},
+  {gid:"681957963",  name:"Social Media"},
+  {gid:"364519362",  name:"Website"},
+  {gid:"1107273397", name:"Presence in the Media"},
+  {gid:"16660537",   name:"Flyers and Posters"},
+  {gid:"910877652",  name:"Personal contacts"}
+];
+
+/* Consortium partners — paste here the full list from Karla's dropdown
+   (open the sheet, click a cell in the Partner column, copy the options).
+   Partners listed here always appear in the filter and in the per-partner
+   chart, even with 0 recorded activities — useful for monitoring coverage. */
+const PARTNER_LIST = [
+  "FSCIRE", "X-officio", "EPHE", "TUA", "RESILIENCE WP12", "UM", "INFAI",
+  "UNISOFIA", "UNSA", "VOLOS", "CINECA", "UFO", "UL"
+];
+/* ═════════════════════════════════════════════ */
+
+/* Official EU Portal categories from the sheet's dropdowns */
+const COMM_CATEGORIES = [
+  "Event (conference, meeting, workshop, internet debate, round table, group discussion, etc.)",
+  "Exhibition", "Interview", "Newsletter", "Press release",
+  "TV/Radio Campaign", "Video", "Other"
+];
+const DISS_CATEGORIES = [
+  "Clustering activities", "Collaboration with EU Funded projects",
+  "Conferences", "Education and Training Events", "Meetings",
+  "Other scientific collaboration", "Other"
+];
+
+const csvUrl=gid=>"https://docs.google.com/spreadsheets/d/"+SHEET_ID+
+  "/gviz/tq?tqx=out:csv&gid="+gid;
+const csvUrlAlt=gid=>"https://docs.google.com/spreadsheets/d/"+SHEET_ID+
+  "/export?format=csv&gid="+gid;
+
+/* ── No bundled data: this dashboard shows ONLY live rows from the tracking sheet ── */
+
+/* ── CSV parser (handles quoted fields with commas/newlines) ── */
+function parseCSV(text){
+  const rows=[];let row=[],cell="",inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){
+      if(ch==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else inQ=false; }
+      else cell+=ch;
+    }else{
+      if(ch==='"')inQ=true;
+      else if(ch===","){row.push(cell);cell="";}
+      else if(ch==="\n"||ch==="\r"){
+        if(ch==="\r"&&text[i+1]==="\n")i++;
+        row.push(cell);cell="";
+        if(row.some(c=>c.trim()!==""))rows.push(row);
+        row=[];
+      }else cell+=ch;
+    }
+  }
+  if(cell!==""||row.length){row.push(cell);if(row.some(c=>c.trim()!==""))rows.push(row);}
+  return rows;
+}
+
+/* ── Map sheet rows → dashboard records (tolerant header matching) ── */
+const clean=s=>String(s??"").replace(/[\u200B-\u200D\uFEFF\u00A0]/g," ").trim();
+function mapSheet(rows,tabName){
+  rows=rows.map(r=>r.map(clean));
+  // find the header row: first row containing a cell with "partner"
+  let hIdx=rows.findIndex(r=>r.some(c=>/partner/i.test(c)));
+  if(hIdx<0)return [];
+  const hdr=rows[hIdx].map(h=>h.toLowerCase());
+  const col=re=>hdr.findIndex(h=>re.test(h));
+  const iPartner=col(/partner/), iDate=col(/^date/),
+        iPeriod=col(/period/),
+        iReach=col(/reach|people/),
+        iType=col(/communication.*dissemination|comm.*diss|^type/),
+        iHow=col(/how/), iWhat=col(/what/),
+        iAud=col(/target audience/),
+        iStatus=col(/status/);
+  // description column varies per tab: Description / Social media channel / URL
+  let iDesc=col(/descri/);
+  if(iDesc<0)iDesc=col(/channel/);
+  if(iDesc<0)iDesc=3; // column D fallback
+  // URL column: take the LAST header starting with "url" (Website tab has two)
+  let iUrl=-1;hdr.forEach((h,i)=>{if(/^url/.test(h))iUrl=i;});
+  const out=[];
+  for(let i=hIdx+1;i<rows.length;i++){
+    const r=rows[i];
+    const partner=r[iPartner]||"";
+    if(!partner||/^(example|instructions?)/i.test(partner))continue;
+    const type=(iType>=0?(r[iType]||""):"");
+    const cat=((iHow>=0&&r[iHow])||(iWhat>=0&&r[iWhat])||"Uncategorised").toString().trim()||"Uncategorised";
+    out.push({
+      tab:tabName,
+      partner,
+      date:(iDate>=0?(r[iDate]||""):"")||"—",
+      period:(iPeriod>=0?(r[iPeriod]||""):"")||"—",
+      desc:(r[iDesc]||"")||"—",
+      reach:parseInt(String(iReach>=0?(r[iReach]||"0"):"0").replace(/[^\d]/g,""))||0,
+      type:/diss/i.test(type)?"Dissemination":"Communication",
+      cat,
+      audience:(iAud>=0?(r[iAud]||""):"")||"—",
+      url:(iUrl>=0&&iUrl!==iDesc?(r[iUrl]||""):(iUrl>=0?(r[iUrl]||""):"")),
+      status:(iStatus>=0?(r[iStatus]||""):"")||"—"
+    });
+  }
+  return out;
+}
+
+/* ── Helpers ── */
+const $=id=>document.getElementById(id);
+const uniq=(arr,k)=>[...new Set(arr.map(x=>x[k]))];
+const fmt=n=>n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,"")+"k":String(n);
+const PALETTE=["#123a6d","#f0b429","#2e7fb8","#7a9e3b","#b2543a","#6b5ca5","#3aa6a0","#8b8b8b"];
+const parseDate=d=>{const p=d.split(/[\/\-.]/);return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+
+let ROWS=[];
+const state={tab:"",partner:"",period:"",type:"",cat:"",status:"",sortKey:"date",sortDir:1};
+
+/* ── Filters ── */
+const FILTERS=[
+  {id:"f-tab",key:"tab",label:"All sheets"},
+  {id:"f-partner",key:"partner",label:"All partners"},
+  {id:"f-period",key:"period",label:"All periods"},
+  {id:"f-type",key:"type",label:"All types"},
+  {id:"f-cat",key:"cat",label:"All categories"},
+  {id:"f-status",key:"status",label:"All statuses"}
+];
+function buildFilters(){
+  FILTERS.forEach(f=>{
+    const sel=$(f.id);
+    const cur=state[f.key];
+    let opts=uniq(ROWS,f.key);
+    if(f.key==="partner")opts=[...new Set([...PARTNER_LIST,...opts])];
+    if(f.key==="tab")opts=[...new Set([...TABS.map(t=>t.name),...opts])];
+    if(f.key==="cat"){
+      const official=state.type==="Communication"?COMM_CATEGORIES
+                    :state.type==="Dissemination"?DISS_CATEGORIES
+                    :[...COMM_CATEGORIES,...DISS_CATEGORIES];
+      opts=[...new Set([...official,...opts])];
+    }
+    const sorted=f.key==="tab"?opts:opts.sort();
+    sel.innerHTML=`<option value="">${f.label}</option>`+
+      sorted.map(v=>`<option${v===cur?" selected":""}>${v}</option>`).join("");
+    sel.onchange=()=>{state[f.key]=sel.value;render();};
+  });
+}
+$("btn-reset").addEventListener("click",()=>{
+  FILTERS.forEach(f=>{$(f.id).value="";state[f.key]="";});
+  render();
+});
+
+function filtered(){
+  return ROWS.filter(r=>
+    (!state.tab    ||r.tab    ===state.tab    )&&
+    (!state.partner||r.partner===state.partner)&&
+    (!state.period ||r.period ===state.period )&&
+    (!state.type   ||r.type   ===state.type   )&&
+    (!state.cat    ||r.cat    ===state.cat    )&&
+    (!state.status ||r.status ===state.status ));
+}
+
+/* ── Charts ── */
+Chart.defaults.font.family='"Segoe UI",system-ui,sans-serif';
+Chart.defaults.font.size=12;
+Chart.defaults.color="#5b6b7c";
+
+const charts={};
+function barBase(horizontal){
+  return {
+    responsive:true,maintainAspectRatio:false,
+    indexAxis:horizontal?"y":"x",
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{grid:{color:horizontal?"#eef1f5":"transparent"},ticks:{precision:0}},
+      y:{grid:{color:horizontal?"transparent":"#eef1f5"},ticks:{precision:0}}
+    }
+  };
+}
+function initCharts(){
+  charts.cat=new Chart($("c-cat"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:42}]},
+    options:barBase(false)});
+  charts.type=new Chart($("c-type"),{type:"doughnut",
+    data:{labels:["Communication","Dissemination"],datasets:[{data:[0,0],backgroundColor:["#123a6d","#f0b429"],borderWidth:2,borderColor:"#fff"}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
+      plugins:{legend:{position:"bottom"}}}});
+  charts.period=new Chart($("c-period"),{type:"bar",
+    data:{labels:[],datasets:[
+      {label:"Communication",data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:60},
+      {label:"Dissemination",data:[],backgroundColor:"#f0b429",borderRadius:4,maxBarThickness:60}]},
+    options:{...barBase(false),
+      plugins:{legend:{position:"bottom"}},
+      scales:{x:{stacked:true,grid:{color:"transparent"}},
+              y:{stacked:true,grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}}}}});
+  charts.partner=new Chart($("c-partner"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
+    options:barBase(true)});
+}
+function updateCharts(data){
+  const catCount={};
+  data.forEach(r=>catCount[r.cat]=(catCount[r.cat]||0)+1);
+  const catSorted=Object.entries(catCount).sort((a,b)=>b[1]-a[1]);
+  charts.cat.data.labels=catSorted.map(x=>x[0]);
+  charts.cat.data.datasets[0].data=catSorted.map(x=>x[1]);
+  charts.cat.data.datasets[0].backgroundColor=catSorted.map((_,i)=>PALETTE[i%PALETTE.length]);
+  charts.cat.update("none");
+
+  const comm=data.filter(r=>r.type==="Communication").length;
+  charts.type.data.datasets[0].data=[comm,data.length-comm];
+  charts.type.update("none");
+
+  const periods=uniq(ROWS,"period").sort();
+  charts.period.data.labels=periods;
+  charts.period.data.datasets[0].data=periods.map(p=>data.filter(r=>r.period===p&&r.type==="Communication").reduce((s,r)=>s+r.reach,0));
+  charts.period.data.datasets[1].data=periods.map(p=>data.filter(r=>r.period===p&&r.type==="Dissemination").reduce((s,r)=>s+r.reach,0));
+  charts.period.update("none");
+
+  const pc={};
+  PARTNER_LIST.forEach(p=>pc[p]=0);
+  data.forEach(r=>pc[r.partner]=(pc[r.partner]||0)+1);
+  const pSorted=Object.entries(pc).sort((a,b)=>b[1]-a[1]);
+  charts.partner.data.labels=pSorted.map(x=>x[0]);
+  charts.partner.data.datasets[0].data=pSorted.map(x=>x[1]);
+  charts.partner.data.datasets[0].backgroundColor=pSorted.map((_,i)=>PALETTE[i%PALETTE.length]);
+  charts.partner.update("none");
+}
+
+/* ── KPIs ── */
+function updateKPIs(data){
+  const comm=data.filter(r=>r.type==="Communication").length;
+  const diss=data.length-comm;
+  const delivered=data.filter(r=>/deliver/i.test(r.status)).length;
+  $("k-act").textContent=data.length;
+  $("k-act-n").textContent=delivered+" delivered · "+(data.length-delivered)+" other statuses";
+  $("k-reach").textContent=fmt(data.reduce((s,r)=>s+r.reach,0));
+  $("k-comm").textContent=comm;
+  $("k-comm-n").textContent=data.length?Math.round(comm/data.length*100)+"% of activities":"—";
+  $("k-diss").textContent=diss;
+  $("k-diss-n").textContent=data.length?Math.round(diss/data.length*100)+"% of activities":"—";
+  $("k-part").textContent=uniq(data,"partner").length;
+}
+
+/* ── Table ── */
+const COLS=[
+  {key:"tab",label:"Sheet"},
+  {key:"partner",label:"Partner"},
+  {key:"date",label:"Date"},
+  {key:"period",label:"Period"},
+  {key:"desc",label:"Description"},
+  {key:"reach",label:"Reach",num:true},
+  {key:"type",label:"Type"},
+  {key:"cat",label:"Category (EU Portal)"},
+  {key:"audience",label:"Audience"},
+  {key:"status",label:"Status"},
+  {key:"url",label:"URL"}
+];
+function buildHead(){
+  $("tbl-hd").innerHTML=COLS.map(c=>{
+    const arr=state.sortKey===c.key?(state.sortDir===1?"▲":"▼"):"";
+    return `<th data-k="${c.key}">${c.label}<span class="arr">${arr}</span></th>`;
+  }).join("");
+  $("tbl-hd").querySelectorAll("th").forEach(th=>{
+    th.addEventListener("click",()=>{
+      const k=th.dataset.k;
+      if(state.sortKey===k)state.sortDir*=-1;else{state.sortKey=k;state.sortDir=1;}
+      render();
+    });
+  });
+}
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function pill(v,cls){return `<span class="pill ${cls}">${esc(v)}</span>`;}
+function updateTable(data){
+  buildHead();
+  const sorted=[...data].sort((a,b)=>{
+    let va=a[state.sortKey],vb=b[state.sortKey];
+    if(state.sortKey==="date"){va=parseDate(va);vb=parseDate(vb);}
+    if(va<vb)return -1*state.sortDir;
+    if(va>vb)return 1*state.sortDir;
+    return 0;
+  });
+  $("tbl-bd").innerHTML=sorted.map(r=>`<tr>
+    <td style="color:var(--ink-soft)">${esc(r.tab||"—")}</td>
+    <td>${esc(r.partner)}</td>
+    <td style="white-space:nowrap">${esc(r.date)}</td>
+    <td>${esc(r.period)}</td>
+    <td>${esc(r.desc)}</td>
+    <td class="num">${r.reach.toLocaleString("en-US")}</td>
+    <td>${pill(r.type,r.type==="Communication"?"comm":"diss")}</td>
+    <td>${esc(r.cat)}</td>
+    <td>${esc(r.audience||"—")}</td>
+    <td>${pill(r.status,/deliver/i.test(r.status)?"ok":/plan/i.test(r.status)?"plan":"prog")}</td>
+    <td>${/^https?:\/\//i.test(r.url||"")?`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--eu-blue);font-weight:600">Link</a>`:"—"}</td>
+  </tr>`).join("");
+  $("t-count").textContent=sorted.length+" of "+ROWS.length+" activities";
+}
+
+/* ── Render & data loading ── */
+function render(){
+  const data=filtered();
+  buildFilters();
+  updateKPIs(data);
+  updateCharts(data);
+  updateTable(data);
+}
+function setSource(live,msg){
+  const b=$("src-badge");
+  b.textContent=msg;
+  b.className="badge"+(live?" live":"");
+  $("foot-status").textContent=live
+    ? "Live connection to the tracking sheet · refreshed "+new Date().toLocaleTimeString()
+    : "No live data loaded — check that the tracking sheet is shared as \u201CAnyone with the link \u2192 Viewer\u201D";
+}
+async function fetchTab(t){
+  const tryUrl=async u=>{
+    const res=await fetch(u,{cache:"no-store"});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const text=await res.text();
+    if(/^\s*</.test(text))throw new Error("got HTML instead of CSV (sign-in wall?)");
+    return mapSheet(parseCSV(text),t.name);
+  };
+  try{return {ok:true,rows:await tryUrl(csvUrl(t.gid))};}
+  catch(e1){
+    try{return {ok:true,rows:await tryUrl(csvUrlAlt(t.gid))};}
+    catch(e2){
+      console.warn("Tab fetch failed:",t.name,e1,e2);
+      return {ok:false,rows:[],err:(e2&&e2.message)||(e1&&e1.message)||"unknown error"};
+    }
+  }
+}
+async function loadData(){
+  setSource(false,"Loading…");
+  const results=await Promise.all(TABS.map(fetchTab));
+  const okCount=results.filter(r=>r.ok).length;
+  ROWS=results.flatMap(r=>r.rows);
+  if(okCount===0){
+    setSource(false,"Connection error");
+    const err=(results.find(r=>r.err)||{}).err||"";
+    $("foot-status").textContent="Could not reach the tracking sheet ("+err+"). "
+      +(location.protocol==="file:"
+        ?"You are opening this file directly from disk (file://) — browsers often block external requests here. Host the page (GitHub Pages, web server, or run: python -m http.server) and open it via http(s)."
+        :"Check that the sheet is shared as \u201CAnyone with the link \u2192 Viewer\u201D or published to the web.");
+  }else{
+    setSource(true,"Live data · "+ROWS.length+" activities · "+okCount+"/"+TABS.length+" sheets");
+    if(ROWS.length===0)$("foot-status").textContent="Connected to the tracking workbook — no activity rows recorded yet";
+    else if(okCount<TABS.length)$("foot-status").textContent+=" · "+(TABS.length-okCount)+" sheet(s) could not be read";
+  }
+  render();
+}
+$("btn-refresh").addEventListener("click",loadData);
+initCharts();
+loadData();
+/* Auto-refresh: re-fetch the sheet every 10 minutes while the page is open */
+const REFRESH_MINUTES = 10;
+setInterval(loadData, REFRESH_MINUTES*60*1000);
+/* Also refresh immediately when the user returns to the tab */
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) loadData(); });
+</script>
+</body>
+</html>
