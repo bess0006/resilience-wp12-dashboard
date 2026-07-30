@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RESILIENCE WP12 — KPI Progress Dashboard</title>
+<style>
+  :root{
+    --eu-blue:#123a6d; --eu-blue-deep:#0c2a50; --eu-gold:#f0b429;
+    --ink:#1c2733; --ink-soft:#5b6b7c; --paper:#eef1f5; --card:#fff;
+    --line:#dde3ea; --pos:#1f8a4c; --warn:#b26a00; --bad:#b2543a;
+    --track:#e7ecf2; --radius:10px; --gap:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--paper);color:var(--ink);padding:20px;}
+  .wrap{max-width:1200px;margin:0 auto;}
+
+  .head{background:linear-gradient(135deg,var(--eu-blue-deep),var(--eu-blue));color:#fff;border-radius:var(--radius);padding:22px 26px;margin-bottom:var(--gap);position:relative;overflow:hidden;}
+  .head::after{content:"";position:absolute;right:-40px;top:-60px;width:260px;height:260px;border-radius:50%;border:34px solid rgba(240,180,41,.14);}
+  .head .eyebrow{font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:var(--eu-gold);font-weight:600;margin-bottom:6px;}
+  .head h1{font-size:22px;font-weight:600;}
+  .head .sub{font-size:13px;color:rgba(255,255,255,.75);margin-top:5px;}
+  .head .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.6px;padding:4px 10px;border-radius:20px;text-transform:uppercase;background:rgba(240,180,41,.18);border:1px solid rgba(240,180,41,.5);color:var(--eu-gold);}
+  .badge.live{background:rgba(72,199,116,.15);border-color:rgba(72,199,116,.55);color:#7fe0a5;}
+  .refresh{font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;}
+  .refresh:hover{background:rgba(255,255,255,.2);}
+  .meta{font-size:12px;color:rgba(255,255,255,.7);}.meta::before{content:"·";margin-right:8px;opacity:.5;}
+  .navbtn{
+    position:absolute;top:22px;right:26px;z-index:2;
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:13px;font-weight:600;padding:9px 16px;border-radius:22px;cursor:pointer;
+    text-decoration:none;color:var(--eu-blue-deep);background:var(--eu-gold);
+    border:1px solid rgba(255,255,255,.25);box-shadow:0 2px 6px rgba(0,0,0,.15);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .navbtn:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.22);}
+  .navbtn .arr{font-size:15px;}
+  @media(max-width:700px){.navbtn{position:static;margin-top:12px;}}
+
+  .errbox{background:#fdf5f3;border:1px solid #edcbc2;border-left:4px solid var(--bad);border-radius:var(--radius);padding:14px 18px;margin-bottom:var(--gap);}
+  .errbox h4{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#8c3a26;margin-bottom:8px;}
+  .errbox .hint{font-size:12px;color:var(--ink-soft);line-height:1.5;}
+  .errbox code{font-family:Consolas,monospace;font-size:12px;color:var(--ink-soft);}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--gap);margin-bottom:var(--gap);}
+  .kpi{background:var(--card);border-radius:var(--radius);padding:18px 20px;box-shadow:0 1px 3px rgba(16,32,54,.08);border-top:3px solid var(--eu-blue);}
+  .kpi.gold{border-top-color:var(--eu-gold);}
+  .kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .kpi .val{font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
+  .kpi .note{font-size:12px;color:var(--ink-soft);margin-top:5px;}
+
+  .tablewrap{background:var(--card);border-radius:var(--radius);padding:18px 20px;box-shadow:0 1px 3px rgba(16,32,54,.08);margin-bottom:var(--gap);}
+  .tablewrap h2{font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--eu-blue);margin-bottom:4px;}
+  .tablewrap .cap{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
+
+  .kpirow{display:grid;grid-template-columns:minmax(180px,1.6fr) 90px 90px 1.4fr 70px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0f2f5;}
+  .kpirow.grp{grid-template-columns:1fr;border-bottom:2px solid var(--line);margin-top:6px;}
+  .kpirow.grp .g{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);padding-top:6px;}
+  .kpirow.hd>div{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);font-weight:600;}
+  .kpirow .name{font-size:13px;}
+  .kpirow .name b{font-weight:600;}
+  .kpirow .name span{color:var(--ink-soft);font-size:12px;}
+  .kpirow .num{text-align:right;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;}
+  .kpirow .num.target{color:var(--ink-soft);font-weight:500;}
+  .pct{text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;}
+
+  .bar{height:10px;background:var(--track);border-radius:6px;overflow:hidden;position:relative;}
+  .bar > i{display:block;height:100%;border-radius:6px;background:var(--eu-blue);transition:width .5s ease;}
+  .bar > i.pos{background:var(--pos);} .bar > i.warn{background:var(--eu-gold);} .bar > i.bad{background:var(--bad);}
+
+  .foot{margin-top:var(--gap);font-size:12px;color:var(--ink-soft);padding:0 4px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+  @media(max-width:760px){
+    .kpirow{grid-template-columns:1fr 60px;grid-auto-flow:row;}
+    .kpirow .bar,.kpirow.hd{display:none;}
+    body{padding:10px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <a class="navbtn" href="index.html"><span class="arr">&larr;</span> Activities</a>
+    <div class="eyebrow">RESILIENCE &middot; Work Package 12</div>
+    <h1>KPI Progress Dashboard</h1>
+    <div class="sub">Actual vs. 2028 target &mdash; based on the RESILIENCE CDE KPI Overview (TIP)</div>
+    <div class="row">
+      <span class="badge" id="src-badge">Loading&hellip;</span>
+      <button class="refresh" id="btn-refresh">&#8635; Refresh data</button>
+      <span class="meta" id="last-updated"></span>
+    </div>
+  </header>
+
+  <section class="errbox" id="errbox" hidden></section>
+
+  <section class="kpis">
+    <div class="kpi"><div class="lab">KPIs tracked</div><div class="val" id="k-total">0</div><div class="note" id="k-total-n"></div></div>
+    <div class="kpi gold"><div class="lab">Targets met</div><div class="val" id="k-met">0</div><div class="note">reached 100%+ of target</div></div>
+    <div class="kpi"><div class="lab">On track</div><div class="val" id="k-ontrack">0</div><div class="note">at or above 60%</div></div>
+    <div class="kpi gold"><div class="lab">Overall progress</div><div class="val" id="k-overall">0%</div><div class="note">avg. across measurable KPIs</div></div>
+  </section>
+
+  <div id="tables"></div>
+
+  <footer class="foot">
+    <span>Data source: <strong>RESILIENCE CDE KPI Overview (TIP)</strong> (Google Drive spreadsheet)</span>
+    <span id="foot-status"></span>
+  </footer>
+</div>
+
+<script>
+/* ═══════════════ CONFIGURATION ═══════════════
+   The KPI Overview is an .xlsx uploaded to Drive. Its export id is below.
+   Share it as "Anyone with the link → Viewer".
+
+   TO SHOW PROGRESS: add a column to the sheet holding the CURRENT value for
+   each KPI row (e.g. a column headed "Current" or "Actual"). The dashboard
+   looks for a header containing "current" or "actual"; until it exists, every
+   KPI shows 0 progress against its target.                                  */
+const FILE_ID = "1JQMTGSOGnf4mYsgllfH4NzsnV2FKdqAC";
+const GID     = "1765472099";
+const REFRESH_MINUTES = 15;
+/* ═════════════════════════════════════════════ */
+
+const urlPrimary = ()=>"https://docs.google.com/spreadsheets/d/"+FILE_ID+"/export?format=csv&gid="+GID+"&_cb="+Date.now();
+const urlAlt     = ()=>"https://docs.google.com/spreadsheets/d/"+FILE_ID+"/gviz/tq?tqx=out:csv&gid="+GID+"&_cb="+Date.now();
+
+const $=id=>document.getElementById(id);
+const clean=s=>String(s??"").replace(/[\u200B-\u200D\uFEFF\u00A0]/g," ").trim();
+
+/* Parse a numeric target/value that may use European formatting:
+   "2.500" -> 2500 ; "100.000" -> 100000 ; "30%" -> 30 ; "2:00" -> 2 (minutes) ; "3%" -> 3 */
+function num(raw){
+  let s=clean(raw);
+  if(!s)return null;
+  const isPct=/%/.test(s);
+  if(/^\d+:\d+$/.test(s)){ const [m,sec]=s.split(":").map(Number); return m+sec/60; } // duration mm:ss -> minutes
+  s=s.replace(/%/g,"").trim();
+  // remove thousands separators (both . and space and ,) — keep a decimal comma only if it looks decimal
+  // European style: dot = thousands. Strip dots and spaces used as separators.
+  s=s.replace(/[.\s](?=\d{3}\b)/g,"");   // 2.500 / 100.000 -> 2500 / 100000
+  s=s.replace(/,/g,".");                  // decimal comma -> dot
+  const n=parseFloat(s.replace(/[^\d.]/g,""));
+  return isNaN(n)?null:n;
+}
+
+/* CSV parser */
+function parseCSV(text){
+  const rows=[];let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else{ if(c==='"')q=true; else if(c===","){row.push(cell);cell="";}
+      else if(c==="\n"||c==="\r"){ if(c==="\r"&&text[i+1]==="\n")i++; row.push(cell);cell=""; if(row.some(x=>x.trim()!==""))rows.push(row); row=[]; }
+      else cell+=c; } }
+  if(cell!==""||row.length){row.push(cell); if(row.some(x=>x.trim()!==""))rows.push(row);}
+  return rows;
+}
+
+/* Interpret the KPI Overview layout:
+   - Section headers: rows whose first cell starts with "TABLE 1/2/3"
+   - Column headers: a row with "ID" in col A and "Key Performance Indicator" in col B
+   - KPI rows: numeric ID in col A (or a sub-row "* Academics" etc. under People reached)
+   - Group labels inside a table (e.g. "RESILIENCE Website"): col A non-numeric, col B empty */
+function mapKPIs(rows){
+  rows=rows.map(r=>r.map(clean));
+  // locate current/actual column from a header row
+  let idxCurrent=-1, idxTarget=-1, idxDesc=2, idxName=1, idxMetric=4;
+  rows.forEach(r=>{
+    r.forEach((c,i)=>{
+      const h=c.toLowerCase();
+      if(/current|actual/.test(h)&&idxCurrent<0)idxCurrent=i;
+      if(/target|end of the project|kpi resilience tip/.test(h)&&idxTarget<0)idxTarget=i;
+    });
+  });
+  if(idxTarget<0)idxTarget=3; // column D default
+
+  const out=[]; let section="", group="";
+  for(const r of rows){
+    const a=r[0]||"", b=r[1]||"";
+    if(/^table\s*\d/i.test(a)){ section=a.replace(/^table\s*\d\s*/i,"").trim(); group=""; continue; }
+    if(/^id$/i.test(a)) continue;                 // header row
+    if(/^(assumptions|resilience kpi overview)/i.test(a)) continue;
+    if(/^\d+\./.test(a)) continue;                // numbered assumption lines
+    const idNum=/^\d+$/.test(a);
+    const isSub=!a && /^\*/.test(b);              // "* Academics" style sub-rows
+    if(!idNum && !isSub){
+      // potential group label: has text in A, target empty
+      if(a && !num(r[idxTarget]) && !b){ group=a; }
+      else if(a && b && !num(r[idxTarget]) ){ group=a; }
+      continue;
+    }
+    const name=isSub? b.replace(/^\*\s*/,"") : b;
+    const desc=r[idxDesc]||"";
+    const target=num(r[idxTarget]);
+    const current=idxCurrent>=0?num(r[idxCurrent]):null;
+    const metric=r[idxMetric]||"";
+    if(target===null && current===null) continue;
+    out.push({section:section||"KPIs", group:isSub?(group||"General"):group, name:name||desc, desc, target, current, metric, sub:isSub});
+  }
+  return {kpis:out, hasCurrent:idxCurrent>=0};
+}
+
+let DATA={kpis:[],hasCurrent:false};
+let lastUpdated=null;
+
+function pctOf(k){
+  if(k.target==null||k.target===0)return null;
+  const cur=k.current==null?0:k.current;
+  return cur/k.target*100;
+}
+function cls(p){ if(p==null)return""; if(p>=100)return"pos"; if(p>=60)return"warn"; return "bad"; }
+const fmtN=n=>n==null?"—":(Number.isInteger(n)?n.toLocaleString("en-US"):n.toLocaleString("en-US",{maximumFractionDigits:1}));
+
+function render(){
+  const ks=DATA.kpis;
+  const measurable=ks.filter(k=>k.target!=null&&k.target>0);
+  const withCur=measurable.filter(k=>k.current!=null);
+  const met=measurable.filter(k=>pctOf(k)>=100).length;
+  const onTrack=measurable.filter(k=>{const p=pctOf(k);return p!=null&&p>=60;}).length;
+  const overall=withCur.length? Math.round(withCur.reduce((s,k)=>s+Math.min(100,pctOf(k)),0)/withCur.length):0;
+
+  $("k-total").textContent=ks.length;
+  $("k-total-n").textContent=measurable.length+" with a numeric target";
+  $("k-met").textContent=met;
+  $("k-ontrack").textContent=onTrack;
+  $("k-overall").textContent=overall+"%";
+
+  // group by section then group
+  const sections=[...new Set(ks.map(k=>k.section))];
+  const host=$("tables"); host.innerHTML="";
+  sections.forEach(sec=>{
+    const box=document.createElement("div"); box.className="tablewrap";
+    const rows=ks.filter(k=>k.section===sec);
+    box.innerHTML=`<h2>${sec}</h2><div class="cap">${rows.length} indicators</div>`+
+      `<div class="kpirow hd"><div>Indicator</div><div class="num">Current</div><div class="num">Target</div><div>Progress</div><div class="pct">%</div></div>`;
+    let lastGroup=null;
+    rows.forEach(k=>{
+      if(k.group&&k.group!==lastGroup){
+        const g=document.createElement("div"); g.className="kpirow grp";
+        g.innerHTML=`<div class="g">${k.group}</div>`; box.appendChild(g); lastGroup=k.group;
+      }
+      const p=pctOf(k);
+      const row=document.createElement("div"); row.className="kpirow";
+      const width=p==null?0:Math.max(2,Math.min(100,p));
+      row.innerHTML=
+        `<div class="name"><b>${k.name}</b> ${k.metric?`<span>· ${k.metric}</span>`:""}</div>`+
+        `<div class="num">${fmtN(k.current)}</div>`+
+        `<div class="num target">${fmtN(k.target)}</div>`+
+        `<div class="bar"><i class="${cls(p)}" style="width:${width}%"></i></div>`+
+        `<div class="pct" style="color:${p==null?'var(--ink-soft)':p>=100?'var(--pos)':p>=60?'var(--warn)':'var(--bad)'}">${p==null?"—":Math.round(p)+"%"}</div>`;
+      box.appendChild(row);
+    });
+    host.appendChild(box);
+  });
+
+  $("foot-status").textContent = DATA.hasCurrent
+    ? "Progress shown against current values from the sheet"
+    : "No \u201CCurrent\u201D column found yet — add one to the sheet to show live progress. Targets are displayed.";
+}
+
+function setBadge(live,msg){ const b=$("src-badge"); b.textContent=msg; b.className="badge"+(live?" live":""); }
+
+async function load(){
+  setBadge(false,"Loading…");
+  const tryUrl=async u=>{ const r=await fetch(u,{cache:"no-store"}); if(!r.ok)throw new Error("HTTP "+r.status);
+    const t=await r.text(); if(/^\s*</.test(t))throw new Error("got HTML instead of CSV (sign-in wall or not shared)"); return t; };
+  let text=null, err=null;
+  try{ text=await tryUrl(urlPrimary()); }
+  catch(e1){ try{ text=await tryUrl(urlAlt()); }catch(e2){ err=(e2&&e2.message)||(e1&&e1.message); } }
+
+  const box=$("errbox");
+  if(text===null){
+    setBadge(false,"Connection error"); DATA={kpis:[],hasCurrent:false};
+    box.hidden=false;
+    box.innerHTML=`<h4>Could not read the KPI sheet</h4><div class="hint"><code>${err||""}</code><br>`+
+      (location.protocol==="file:"
+        ? "You are opening this file from disk (file://). Host it (GitHub Pages) and open over http(s)."
+        : "This is an uploaded .xlsx. Make sure it is shared as \u201CAnyone with the link \u2192 Viewer\u201D. If it still fails, open it in Drive and use File \u2192 Save as Google Sheets, then use the new Sheet id.")+
+      `</div>`;
+  }else{
+    box.hidden=true;
+    DATA=mapKPIs(parseCSV(text));
+    setBadge(true,"Live data · "+DATA.kpis.length+" KPIs");
+  }
+  lastUpdated=new Date();
+  $("last-updated").textContent="Last updated "+lastUpdated.toLocaleTimeString();
+  render();
+}
+
+$("btn-refresh").addEventListener("click",load);
+setInterval(load, REFRESH_MINUTES*60*1000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) load(); });
+load();
+</script>
+</body>
+</html>

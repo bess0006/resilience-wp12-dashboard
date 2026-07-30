@@ -43,6 +43,17 @@
   .head h1{font-size:22px;font-weight:600;letter-spacing:.2px;}
   .head .sub{font-size:13px;color:rgba(255,255,255,.75);margin-top:5px;}
   .head .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .navbtn{
+    position:absolute;top:22px;right:26px;z-index:2;
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:13px;font-weight:600;padding:9px 16px;border-radius:22px;cursor:pointer;
+    text-decoration:none;color:var(--eu-blue-deep);background:var(--eu-gold);
+    border:1px solid rgba(255,255,255,.25);box-shadow:0 2px 6px rgba(0,0,0,.15);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .navbtn:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.22);}
+  .navbtn .arr{font-size:15px;}
+  @media(max-width:700px){.navbtn{position:static;margin-top:12px;}}
   .badge{
     display:inline-block;font-size:11px;font-weight:600;letter-spacing:.6px;
     padding:4px 10px;border-radius:20px;text-transform:uppercase;
@@ -145,6 +156,7 @@
 <div class="wrap">
 
   <header class="head">
+    <a class="navbtn" href="kpi.html">KPI Progress <span class="arr">&rarr;</span></a>
     <div class="eyebrow">RESILIENCE &middot; Work Package 12</div>
     <h1>Communication &amp; Dissemination Statistics Dashboard</h1>
     <div class="sub">Automated monitoring &amp; reporting based on the WP12 Tracking File &mdash; D4.3, Recommendation&nbsp;1</div>
