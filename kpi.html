@@ -112,15 +112,12 @@
 
 <script>
 /* ═══════════════ CONFIGURATION ═══════════════
-   The KPI Overview is an .xlsx uploaded to Drive. Its export id is below.
-   Share it as "Anyone with the link → Viewer".
-
-   TO SHOW PROGRESS: add a column to the sheet holding the CURRENT value for
-   each KPI row (e.g. a column headed "Current" or "Actual"). The dashboard
-   looks for a header containing "current" or "actual"; until it exists, every
-   KPI shows 0 progress against its target.                                  */
+   Reads the "KPI RESILIENCE TIP" tab (targets in column D, monthly values
+   from column H onward). For each KPI it takes the latest filled month and
+   compares it to the target — the same logic as the Dashboard view sheet.
+   Share the file as "Anyone with the link → Viewer".                        */
 const FILE_ID = "1JQMTGSOGnf4mYsgllfH4NzsnV2FKdqAC";
-const GID     = "1765472099";
+const GID     = "1765472099";   // KPI RESILIENCE TIP tab
 const REFRESH_MINUTES = 15;
 /* ═════════════════════════════════════════════ */
 
@@ -158,48 +155,68 @@ function parseCSV(text){
   return rows;
 }
 
-/* Interpret the KPI Overview layout:
+/* Interpret the KPI RESILIENCE TIP layout:
    - Section headers: rows whose first cell starts with "TABLE 1/2/3"
    - Column headers: a row with "ID" in col A and "Key Performance Indicator" in col B
-   - KPI rows: numeric ID in col A (or a sub-row "* Academics" etc. under People reached)
-   - Group labels inside a table (e.g. "RESILIENCE Website"): col A non-numeric, col B empty */
+   - Target: the "KPI ... end of the project" / "Target" column (usually D)
+   - Monthly values: every column whose header looks like a month (Jun 2026 …)
+   - Latest value: the last non-empty monthly cell on that KPI's row
+   - "—" in the month cells marks Tracking-File KPIs (shown, not scored) */
+function isMonthHeader(h){
+  return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*'?\d{2,4}/i.test(h)
+      || /\b20\d{2}\b/.test(h) && /[a-z]{3}/i.test(h);
+}
 function mapKPIs(rows){
   rows=rows.map(r=>r.map(clean));
-  // locate current/actual column from a header row
-  let idxCurrent=-1, idxTarget=-1, idxDesc=2, idxName=1, idxMetric=4;
-  rows.forEach(r=>{
-    r.forEach((c,i)=>{
-      const h=c.toLowerCase();
-      if(/current|actual/.test(h)&&idxCurrent<0)idxCurrent=i;
-      if(/target|end of the project|kpi resilience tip/.test(h)&&idxTarget<0)idxTarget=i;
-    });
-  });
-  if(idxTarget<0)idxTarget=3; // column D default
+  // find header row (has "ID" in col A and an indicator column)
+  let hIdx=rows.findIndex(r=>/^id$/i.test((r[0]||"").trim()) && r.some(c=>/key performance/i.test(c)));
+  if(hIdx<0)hIdx=rows.findIndex(r=>r.some(c=>/key performance/i.test(c)));
+  if(hIdx<0)return {kpis:[],hasCurrent:false};
+  const hdr=rows[hIdx];
+  // target column: header mentioning target / end of the project
+  let idxTarget=hdr.findIndex(h=>/target|end of the project|kpi resilience tip/i.test(h));
+  if(idxTarget<0)idxTarget=3;
+  const idxName=1, idxDesc=2, idxMetric=hdr.findIndex(h=>/^metric/i.test(h));
+  // month columns = any header that looks like a month, to the right of target
+  const monthCols=[];
+  hdr.forEach((h,i)=>{ if(i>idxTarget && h && isMonthHeader(h)) monthCols.push(i); });
 
   const out=[]; let section="", group="";
-  for(const r of rows){
-    const a=r[0]||"", b=r[1]||"";
-    if(/^table\s*\d/i.test(a)){ section=a.replace(/^table\s*\d\s*/i,"").trim(); group=""; continue; }
-    if(/^id$/i.test(a)) continue;                 // header row
+  for(let r=hIdx+1;r<rows.length;r++){
+    const row=rows[r];
+    const a=(row[0]||"").trim(), b=(row[idxName]||"").trim();
+    if(/^table\s*\d/i.test(a)){ section=a.replace(/^table\s*\d\s*/i,"").replace(/resilience key performance indicators?\s*(for)?/i,"").trim()||a; group=""; continue; }
+    if(/^id$/i.test(a)) continue;
     if(/^(assumptions|resilience kpi overview)/i.test(a)) continue;
-    if(/^\d+\./.test(a)) continue;                // numbered assumption lines
-    const idNum=/^\d+$/.test(a);
-    const isSub=!a && /^\*/.test(b);              // "* Academics" style sub-rows
-    if(!idNum && !isSub){
-      // potential group label: has text in A, target empty
-      if(a && !num(r[idxTarget]) && !b){ group=a; }
-      else if(a && b && !num(r[idxTarget]) ){ group=a; }
+    if(/^\d+\./.test(a)) continue;
+    const hasId=/^\d+(\.0)?$/.test(a);
+    const isSub=!a && /^\*/.test(b);
+    // group label row: text in A, no numeric id, target empty
+    if(!hasId && !isSub){
+      if(a && !num(row[idxTarget])) group=a;
       continue;
     }
-    const name=isSub? b.replace(/^\*\s*/,"") : b;
-    const desc=r[idxDesc]||"";
-    const target=num(r[idxTarget]);
-    const current=idxCurrent>=0?num(r[idxCurrent]):null;
-    const metric=r[idxMetric]||"";
-    if(target===null && current===null) continue;
-    out.push({section:section||"KPIs", group:isSub?(group||"General"):group, name:name||desc, desc, target, current, metric, sub:isSub});
+    const target=num(row[idxTarget]);
+    // gather this row's monthly values
+    let latest=null, tracking=false, anyDash=false;
+    for(const ci of monthCols){
+      const cell=(row[ci]||"").trim();
+      if(cell==="\u2014"||cell==="-"){ anyDash=true; continue; }
+      const v=num(cell);
+      if(v!==null) latest=v;   // keep last non-empty → most recent month
+    }
+    if(anyDash && latest===null) tracking=true;
+    const name=isSub? b.replace(/^\*\s*/,"") : (b||row[idxDesc]||"");
+    out.push({
+      section:section||"KPIs",
+      group:isSub?(group||"General"):group,
+      name, desc:row[idxDesc]||"",
+      target, current:latest,
+      metric:idxMetric>=0?(row[idxMetric]||""):"",
+      tracking, sub:isSub
+    });
   }
-  return {kpis:out, hasCurrent:idxCurrent>=0};
+  return {kpis:out, hasCurrent:monthCols.length>0};
 }
 
 let DATA={kpis:[],hasCurrent:false};
@@ -256,8 +273,8 @@ function render(){
   });
 
   $("foot-status").textContent = DATA.hasCurrent
-    ? "Progress shown against current values from the sheet"
-    : "No \u201CCurrent\u201D column found yet — add one to the sheet to show live progress. Targets are displayed.";
+    ? "Progress shown against the latest filled month in the KPI sheet"
+    : "No monthly columns found yet — add month columns (Jun 2026 …) to the KPI sheet. Targets are displayed.";
 }
 
 function setBadge(live,msg){ const b=$("src-badge"); b.textContent=msg; b.className="badge"+(live?" live":""); }
