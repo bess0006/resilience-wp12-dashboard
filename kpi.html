@@ -160,11 +160,15 @@ function parseCSV(text){
    - Column headers: a row with "ID" in col A and "Key Performance Indicator" in col B
    - Target: the "KPI ... end of the project" / "Target" column (usually D)
    - Monthly values: every column whose header looks like a month (Jun 2026 …)
-   - Latest value: the last non-empty monthly cell on that KPI's row
+   - Calc column: header "Calc" — one of sum / last / avg per KPI, decides how
+     the monthly values are combined:
+        sum  → total across all filled months (posts, videos, events …)
+        last → most recent filled month (followers, subscribers …)
+        avg  → average of filled months (rates, averages, session duration …)
    - "—" in the month cells marks Tracking-File KPIs (shown, not scored) */
 function isMonthHeader(h){
-  return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*'?\d{2,4}/i.test(h)
-      || /\b20\d{2}\b/.test(h) && /[a-z]{3}/i.test(h);
+  return /\b(jan|feb|mar|mrt|apr|may|mei|jun|jul|aug|sep|oct|okt|nov|dec)[a-z]*\.?\s*'?\d{2,4}/i.test(h)
+      || (/\b20\d{2}\b/.test(h) && /[a-z]{3}/i.test(h));
 }
 function mapKPIs(rows){
   rows=rows.map(r=>r.map(clean));
@@ -173,13 +177,16 @@ function mapKPIs(rows){
   if(hIdx<0)hIdx=rows.findIndex(r=>r.some(c=>/key performance/i.test(c)));
   if(hIdx<0)return {kpis:[],hasCurrent:false};
   const hdr=rows[hIdx];
-  // target column: header mentioning target / end of the project
   let idxTarget=hdr.findIndex(h=>/target|end of the project|kpi resilience tip/i.test(h));
   if(idxTarget<0)idxTarget=3;
   const idxName=1, idxDesc=2, idxMetric=hdr.findIndex(h=>/^metric/i.test(h));
-  // month columns = any header that looks like a month, to the right of target
+  const idxCalc=hdr.findIndex(h=>/^calc/i.test(h));
+  // month columns = any header that looks like a month, right of target,
+  // and (if a Calc column exists) left of it
   const monthCols=[];
-  hdr.forEach((h,i)=>{ if(i>idxTarget && h && isMonthHeader(h)) monthCols.push(i); });
+  hdr.forEach((h,i)=>{
+    if(i>idxTarget && (idxCalc<0 || i<idxCalc) && h && isMonthHeader(h)) monthCols.push(i);
+  });
 
   const out=[]; let section="", group="";
   for(let r=hIdx+1;r<rows.length;r++){
@@ -191,29 +198,35 @@ function mapKPIs(rows){
     if(/^\d+\./.test(a)) continue;
     const hasId=/^\d+(\.0)?$/.test(a);
     const isSub=!a && /^\*/.test(b);
-    // group label row: text in A, no numeric id, target empty
     if(!hasId && !isSub){
       if(a && !num(row[idxTarget])) group=a;
       continue;
     }
     const target=num(row[idxTarget]);
-    // gather this row's monthly values
-    let latest=null, tracking=false, anyDash=false;
+    const calc=(idxCalc>=0?(row[idxCalc]||""):"").toLowerCase().trim();
+    // collect this row's monthly values (numbers only), note dashes
+    const vals=[]; let anyDash=false;
     for(const ci of monthCols){
       const cell=(row[ci]||"").trim();
       if(cell==="\u2014"||cell==="-"){ anyDash=true; continue; }
       const v=num(cell);
-      if(v!==null) latest=v;   // keep last non-empty → most recent month
+      if(v!==null) vals.push(v);
     }
-    if(anyDash && latest===null) tracking=true;
+    const tracking = anyDash && vals.length===0;
+    let current=null;
+    if(vals.length){
+      if(calc==="last") current=vals[vals.length-1];
+      else if(calc==="avg") current=vals.reduce((s,x)=>s+x,0)/vals.length;
+      else current=vals.reduce((s,x)=>s+x,0);      // sum (default)
+    }
     const name=isSub? b.replace(/^\*\s*/,"") : (b||row[idxDesc]||"");
     out.push({
       section:section||"KPIs",
       group:isSub?(group||"General"):group,
       name, desc:row[idxDesc]||"",
-      target, current:latest,
+      target, current,
       metric:idxMetric>=0?(row[idxMetric]||""):"",
-      tracking, sub:isSub
+      calc, tracking, sub:isSub
     });
   }
   return {kpis:out, hasCurrent:monthCols.length>0};
@@ -273,7 +286,7 @@ function render(){
   });
 
   $("foot-status").textContent = DATA.hasCurrent
-    ? "Progress shown against the latest filled month in the KPI sheet"
+    ? "Each KPI totalled, averaged or taken at its latest month, per the Calc column"
     : "No monthly columns found yet — add month columns (Jun 2026 …) to the KPI sheet. Targets are displayed.";
 }
 
