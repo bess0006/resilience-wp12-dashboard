@@ -219,11 +219,14 @@ function mapKPIs(rows){
       else if(calc==="avg") current=vals.reduce((s,x)=>s+x,0)/vals.length;
       else current=vals.reduce((s,x)=>s+x,0);      // sum (default)
     }
-    const name=isSub? b.replace(/^\*\s*/,"") : (b||row[idxDesc]||"");
+    // Prefer the description (e.g. "Number of followers on X") so the channel
+    // is visible; fall back to the short name. Sub-rows keep their own label.
+    const desc=row[idxDesc]||"";
+    const name=isSub? b.replace(/^\*\s*/,"") : (desc||b||"");
     out.push({
       section:section||"KPIs",
       group:isSub?(group||"General"):group,
-      name, desc:row[idxDesc]||"",
+      name, desc,
       target, current,
       metric:idxMetric>=0?(row[idxMetric]||""):"",
       calc, tracking, sub:isSub
