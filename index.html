@@ -110,6 +110,11 @@
 
   .charts{display:grid;grid-template-columns:1.35fr 1fr;gap:var(--gap);margin-bottom:var(--gap);}
   .charts2{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:var(--gap);}
+  .reach-block{margin-top:8px;}
+  .reach-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:4px 2px 14px;}
+  .reach-head h2{font-size:18px;color:var(--navy);margin:0;font-weight:800;letter-spacing:-.01em;}
+  .reach-head label{font-size:12px;font-weight:700;color:#5b6b7f;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:8px;}
+  .reach-head select{font:inherit;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;padding:7px 12px;border:1px solid #d5dde6;border-radius:8px;background:#fff;color:var(--ink);}
   .panel{
     background:var(--card);border-radius:var(--radius);padding:18px 20px;
     box-shadow:0 1px 3px rgba(16,32,54,.08);
@@ -197,6 +202,27 @@
   <section class="charts2">
     <div class="panel"><h3>Estimated reach per period <span>(by type)</span></h3><div class="ch"><canvas id="c-period"></canvas></div></div>
     <div class="panel"><h3>Activities per partner</h3><div class="ch"><canvas id="c-partner"></canvas></div></div>
+  </section>
+
+  <section class="reach-block">
+    <div class="reach-head">
+      <h2>Reach breakdowns</h2>
+      <label>Period
+        <select id="reach-period"><option value="">All periods</option></select>
+      </label>
+    </div>
+    <div class="charts2">
+      <div class="panel"><h3>Total reach per touchpoint <span>(communication channel)</span></h3><div class="ch"><canvas id="c-touch"></canvas></div></div>
+      <div class="panel"><h3>Reach per social media account</h3><div class="ch"><canvas id="c-social"></canvas></div></div>
+    </div>
+    <div class="charts2">
+      <div class="panel"><h3>Reach per RESILIENCE target audience</h3><div class="ch"><canvas id="c-resaud"></canvas></div></div>
+      <div class="panel"><h3>Reach per EU target audience</h3><div class="ch"><canvas id="c-euaud"></canvas></div></div>
+    </div>
+    <div class="charts2">
+      <div class="panel"><h3>Website reach per partner</h3><div class="ch"><canvas id="c-webpart"></canvas></div></div>
+      <div class="panel"><h3>Social media reach per partner</h3><div class="ch"><canvas id="c-socpart"></canvas></div></div>
+    </div>
   </section>
 
   <section class="tbl-panel">
@@ -318,8 +344,13 @@ function mapSheet(rows,tabName){
         iReach=col(/reach|people/),
         iType=col(/communication.*dissemination|comm.*diss|^type/),
         iHow=col(/how/), iWhat=col(/what/),
-        iAud=col(/target audience/),
+        iAud=col(/resilience target audience/),
+        iEuAud=col(/eu target audience/),
+        iChannel=col(/social media channel|channel/),
         iStatus=col(/status/);
+  // fallback: if the specific "resilience target audience" header isn't found,
+  // fall back to any "target audience" column for the RESILIENCE audience
+  const iAudRes = iAud>=0 ? iAud : col(/target audience/);
   // description column varies per tab: Description / Social media channel / URL
   let iDesc=col(/descri/);
   if(iDesc<0)iDesc=col(/channel/);
@@ -342,7 +373,9 @@ function mapSheet(rows,tabName){
       reach:parseInt(String(iReach>=0?(r[iReach]||"0"):"0").replace(/[^\d]/g,""))||0,
       type:/diss/i.test(type)?"Dissemination":"Communication",
       cat,
-      audience:(iAud>=0?(r[iAud]||""):"")||"—",
+      audience:(iAudRes>=0?(r[iAudRes]||""):"")||"—",
+      euAudience:(iEuAud>=0?(r[iEuAud]||""):"")||"—",
+      channel:(iChannel>=0?(r[iChannel]||""):"")||"—",
       url:(iUrl>=0&&iUrl!==iDesc?(r[iUrl]||""):(iUrl>=0?(r[iUrl]||""):"")),
       status:(iStatus>=0?(r[iStatus]||""):"")||"—"
     });
@@ -412,6 +445,15 @@ function buildFilters(){
       sorted.map(v=>`<option${v===cur?" selected":""}>${v}</option>`).join("");
     sel.onchange=()=>{state[f.key]=sel.value;render();};
   });
+  // populate the reach-block period filter from the data
+  const rpSel=$("reach-period");
+  if(rpSel){
+    const cur=rpSel.value;
+    const periods=uniq(ROWS,"period").filter(p=>p&&p!=="—").sort();
+    rpSel.innerHTML='<option value="">All periods</option>'+
+      periods.map(p=>`<option${p===cur?" selected":""}>${p}</option>`).join("");
+    rpSel.onchange=()=>updateReachCharts(filtered());
+  }
 }
 $("btn-reset").addEventListener("click",()=>{
   FILTERS.forEach(f=>{$(f.id).value="";state[f.key]="";});
@@ -475,6 +517,36 @@ function initCharts(){
   charts.partner=new Chart($("c-partner"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
     options:{...barBase(true), plugins:{...(barBase(true).plugins||{}), legend:{display:false}, datalabels:dlHoriz}}});
+
+  // ── reach-breakdown charts ──
+  // horizontal bars use the k-formatted label at the bar end
+  const dlHorizK={anchor:"end",align:"right",color:"#1c2733",font:{weight:"600",size:11},
+    clamp:true, formatter:v=>v>0?fmt(v):"" };
+  const vbarReach={...barBase(false),
+    plugins:{legend:{display:false},datalabels:{anchor:"end",align:"end",color:"#1c2733",font:{weight:"600",size:11},formatter:v=>v>0?fmt(v):""}},
+    scales:{x:{grid:{color:"transparent"}},y:{grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}}}};
+  const hbarReach={...barBase(true),
+    plugins:{legend:{display:false},datalabels:dlHorizK},
+    scales:{x:{grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}},y:{grid:{color:"transparent"}}}};
+
+  charts.touch=new Chart($("c-touch"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:46}]},
+    options:vbarReach});
+  charts.social=new Chart($("c-social"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:46}]},
+    options:vbarReach});
+  charts.resaud=new Chart($("c-resaud"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:30}]},
+    options:hbarReach});
+  charts.euaud=new Chart($("c-euaud"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:30}]},
+    options:hbarReach});
+  charts.webpart=new Chart($("c-webpart"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
+    options:hbarReach});
+  charts.socpart=new Chart($("c-socpart"),{type:"bar",
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
+    options:hbarReach});
 }
 function updateCharts(data){
   const catCount={};
@@ -503,6 +575,43 @@ function updateCharts(data){
   charts.partner.data.datasets[0].data=pSorted.map(x=>x[1]);
   charts.partner.data.datasets[0].backgroundColor=pSorted.map((_,i)=>PALETTE[i%PALETTE.length]);
   charts.partner.update("none");
+
+  updateReachCharts(data);
+}
+
+/* Sum reach by a chosen key over rows, drop blanks/"—", return sorted [label,value]. */
+function reachBy(rows,keyFn){
+  const m={};
+  rows.forEach(r=>{
+    const k=(keyFn(r)||"").toString().trim();
+    if(!k||k==="—")return;
+    m[k]=(m[k]||0)+(r.reach||0);
+  });
+  return Object.entries(m).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);
+}
+function paintBar(chart,pairs){
+  chart.data.labels=pairs.map(x=>x[0]);
+  chart.data.datasets[0].data=pairs.map(x=>x[1]);
+  chart.data.datasets[0].backgroundColor=pairs.map((_,i)=>PALETTE[i%PALETTE.length]);
+  chart.update("none");
+}
+function updateReachCharts(data){
+  // apply the reach-block period filter on top of the global filters
+  const rp=$("reach-period")?$("reach-period").value:"";
+  const d=rp?data.filter(r=>r.period===rp):data;
+
+  // 1. reach per touchpoint (communication category / "How") — communication rows
+  paintBar(charts.touch, reachBy(d.filter(r=>r.type==="Communication"), r=>r.cat));
+  // 2. reach per social media account (Social Media tab, channel column)
+  paintBar(charts.social, reachBy(d.filter(r=>r.tab==="Social Media"), r=>r.channel));
+  // 3. reach per RESILIENCE target audience
+  paintBar(charts.resaud, reachBy(d, r=>r.audience));
+  // 4. reach per EU target audience
+  paintBar(charts.euaud, reachBy(d, r=>r.euAudience));
+  // 5. website reach per partner (Website tab)
+  paintBar(charts.webpart, reachBy(d.filter(r=>r.tab==="Website"), r=>r.partner));
+  // 6. social media reach per partner (Social Media tab)
+  paintBar(charts.socpart, reachBy(d.filter(r=>r.tab==="Social Media"), r=>r.partner));
 }
 
 /* ── KPIs ── */
