@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RESILIENCE WP12 — Communication &amp; Dissemination Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 <style>
   :root{
     --eu-blue:#123a6d;
@@ -445,24 +446,35 @@ function barBase(horizontal){
   };
 }
 function initCharts(){
+  if(window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+  // shared label style: only draw when value > 0
+  const dlBar={anchor:"end",align:"end",color:"#1c2733",font:{weight:"600",size:11},
+    formatter:v=>v>0?v:"" };
+  const dlBarInside={anchor:"center",align:"center",color:"#fff",font:{weight:"600",size:11},
+    formatter:v=>v>0?fmt(v):"" };
+  const dlHoriz={anchor:"end",align:"right",color:"#1c2733",font:{weight:"600",size:11},
+    clamp:true, formatter:v=>v>0?v:"" };
+  const dlPie={color:"#fff",font:{weight:"700",size:13},
+    formatter:(v,ctx)=>{const t=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return v>0?v:"";}};
+
   charts.cat=new Chart($("c-cat"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:42}]},
-    options:barBase(false)});
+    options:{...barBase(false), plugins:{...(barBase(false).plugins||{}), legend:{display:false}, datalabels:dlBar}}});
   charts.type=new Chart($("c-type"),{type:"doughnut",
     data:{labels:["Communication","Dissemination"],datasets:[{data:[0,0],backgroundColor:["#123a6d","#f0b429"],borderWidth:2,borderColor:"#fff"}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
-      plugins:{legend:{position:"bottom"}}}});
+      plugins:{legend:{position:"bottom"},datalabels:dlPie}}});
   charts.period=new Chart($("c-period"),{type:"bar",
     data:{labels:[],datasets:[
       {label:"Communication",data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:60},
       {label:"Dissemination",data:[],backgroundColor:"#f0b429",borderRadius:4,maxBarThickness:60}]},
     options:{...barBase(false),
-      plugins:{legend:{position:"bottom"}},
+      plugins:{legend:{position:"bottom"},datalabels:dlBarInside},
       scales:{x:{stacked:true,grid:{color:"transparent"}},
               y:{stacked:true,grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}}}}});
   charts.partner=new Chart($("c-partner"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
-    options:barBase(true)});
+    options:{...barBase(true), plugins:{...(barBase(true).plugins||{}), legend:{display:false}, datalabels:dlHoriz}}});
 }
 function updateCharts(data){
   const catCount={};
