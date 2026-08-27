@@ -525,10 +525,13 @@ function initCharts(){
     data:{labels:[],datasets:[{data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:42}]},
     options:{...barBase(false),
       plugins:{...(barBase(false).plugins||{}), legend:{display:false}, datalabels:dlBar,
-        tooltip:{callbacks:{title:items=>{const l=items[0]&&charts.cat.$fullLabels?charts.cat.$fullLabels[items[0].dataIndex]:items[0].label;return l;}}}},
+        tooltip:{enabled:false}},
       scales:{...(barBase(false).scales||{}),
         x:{grid:{color:"transparent"},ticks:{autoSkip:false,maxRotation:0,minRotation:0,
-          callback:function(val){const full=this.getLabelForValue(val);return full.length>16?full.slice(0,15).replace(/[\s(,]+$/,"")+"\u2026":full;}}}}}});
+          callback:function(val){let full=this.getLabelForValue(val);
+            let s=full.split("(")[0].trim();          // drop the "(…)" detail
+            if(s.length>18)s=s.slice(0,17).trim()+"\u2026";
+            return s||full;}}}}}});
   charts.type=new Chart($("c-type"),{type:"doughnut",
     data:{labels:["Communication","Dissemination"],datasets:[{data:[0,0],backgroundColor:["#123a6d","#f0b429"],borderWidth:2,borderColor:"#fff"}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
