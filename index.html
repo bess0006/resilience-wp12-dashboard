@@ -500,7 +500,7 @@ function updateKPIs(data){
   const delivered=data.filter(r=>/deliver/i.test(r.status)).length;
   $("k-act").textContent=data.length;
   $("k-act-n").textContent=delivered+" delivered · "+(data.length-delivered)+" other statuses";
-  $("k-reach").textContent=fmt(data.reduce((s,r)=>s+r.reach,0));
+  $("k-reach").textContent=data.reduce((s,r)=>s+r.reach,0).toLocaleString("en-US");
   $("k-comm").textContent=comm;
   $("k-comm-n").textContent=data.length?Math.round(comm/data.length*100)+"% of activities":"—";
   $("k-diss").textContent=diss;
