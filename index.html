@@ -523,7 +523,12 @@ function initCharts(){
 
   charts.cat=new Chart($("c-cat"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:42}]},
-    options:{...barBase(false), plugins:{...(barBase(false).plugins||{}), legend:{display:false}, datalabels:dlBar}}});
+    options:{...barBase(false),
+      plugins:{...(barBase(false).plugins||{}), legend:{display:false}, datalabels:dlBar,
+        tooltip:{callbacks:{title:items=>{const l=items[0]&&charts.cat.$fullLabels?charts.cat.$fullLabels[items[0].dataIndex]:items[0].label;return l;}}}},
+      scales:{...(barBase(false).scales||{}),
+        x:{grid:{color:"transparent"},ticks:{autoSkip:false,maxRotation:0,minRotation:0,
+          callback:function(val){const full=this.getLabelForValue(val);return full.length>16?full.slice(0,15).replace(/[\s(,]+$/,"")+"\u2026":full;}}}}}});
   charts.type=new Chart($("c-type"),{type:"doughnut",
     data:{labels:["Communication","Dissemination"],datasets:[{data:[0,0],backgroundColor:["#123a6d","#f0b429"],borderWidth:2,borderColor:"#fff"}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
@@ -541,15 +546,17 @@ function initCharts(){
     options:{...barBase(true), plugins:{...(barBase(true).plugins||{}), legend:{display:false}, datalabels:dlHoriz}}});
 
   // ── reach-breakdown charts ──
-  // horizontal bars use the k-formatted label at the bar end
+  // horizontal bar labels sit just past the bar end; the x-axis carries extra
+  // headroom (grace) so even the longest bar's number has room and never clips.
   const dlHorizK={anchor:"end",align:"right",color:"#1c2733",font:{weight:"600",size:11},
     clamp:true, formatter:v=>v>0?v.toLocaleString("en-US"):"" };
   const vbarReach={...barBase(false),
     plugins:{legend:{display:false},datalabels:{anchor:"end",align:"end",color:"#1c2733",font:{weight:"600",size:11},formatter:v=>v>0?v.toLocaleString("en-US"):""}},
     scales:{x:{grid:{color:"transparent"}},y:{grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}}}};
   const hbarReach={...barBase(true),
+    layout:{padding:{right:52}},
     plugins:{legend:{display:false},datalabels:dlHorizK},
-    scales:{x:{grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}},y:{grid:{color:"transparent"}}}};
+    scales:{x:{grace:"12%",grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}},y:{grid:{color:"transparent"}}}};
 
   charts.touch=new Chart($("c-touch"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:46}]},
@@ -574,6 +581,7 @@ function updateCharts(data){
   const catCount={};
   data.forEach(r=>catCount[r.cat]=(catCount[r.cat]||0)+1);
   const catSorted=Object.entries(catCount).sort((a,b)=>b[1]-a[1]);
+  charts.cat.$fullLabels=catSorted.map(x=>x[0]);
   charts.cat.data.labels=catSorted.map(x=>x[0]);
   charts.cat.data.datasets[0].data=catSorted.map(x=>x[1]);
   charts.cat.data.datasets[0].backgroundColor=catSorted.map((_,i)=>PALETTE[i%PALETTE.length]);
