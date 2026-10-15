@@ -546,7 +546,13 @@ function initCharts(){
               y:{stacked:true,grid:{color:"#eef1f5"},ticks:{callback:v=>fmt(v)}}}}});
   charts.partner=new Chart($("c-partner"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:[],borderRadius:4,maxBarThickness:26}]},
-    options:{...barBase(true), plugins:{...(barBase(true).plugins||{}), legend:{display:false}, datalabels:dlHoriz}}});
+    options:{...barBase(true),
+      layout:{padding:{right:40}},                 // room so the longest bar's number isn't clipped
+      plugins:{...(barBase(true).plugins||{}), legend:{display:false}, datalabels:dlHoriz},
+      scales:{
+        x:{grid:{color:"#eef1f5"},ticks:{precision:0},grace:"8%"},   // headroom on the value axis
+        y:{grid:{color:"transparent"},ticks:{precision:0,autoSkip:false}}  // show every partner name
+      }}});
 
   // ── reach-breakdown charts ──
   // horizontal bar labels sit just past the bar end; the x-axis carries extra
