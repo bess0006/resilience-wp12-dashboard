@@ -362,7 +362,7 @@ function mapSheet(rows,tabName){
   const hdr=rows[hIdx].map(h=>h.toLowerCase());
   const col=re=>hdr.findIndex(h=>re.test(h));
   const iPartner=col(/partner/), iDate=col(/^date/),
-        iPeriod=col(/period/),
+        iPeriod=col(/^period$/),   // exact "Period" only — not "End date of period…" (that is a date column)
         iReach=col(/reach|people/),
         iType=col(/communication.*dissemination|comm.*diss|^type/),
         iHow=col(/how/), iWhat=col(/what/),
