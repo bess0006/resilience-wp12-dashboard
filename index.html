@@ -218,12 +218,12 @@
 
   <section class="charts">
     <div class="panel"><h3>Activities by category <span>(EU Portal categories)</span></h3><div class="ch"><canvas id="c-cat"></canvas></div></div>
-    <div class="panel"><h3>Communication vs Dissemination</h3><div class="ch"><canvas id="c-type"></canvas></div></div>
+    <div class="panel"><h3>Communication vs Dissemination <span>(by reach)</span></h3><div class="ch"><canvas id="c-type"></canvas></div></div>
   </section>
 
   <section class="charts2">
     <div class="panel"><h3>Estimated reach per period <span>(by type)</span></h3><div class="ch"><canvas id="c-period"></canvas></div></div>
-    <div class="panel"><h3>Activities per partner</h3><div class="ch"><canvas id="c-partner"></canvas></div></div>
+    <div class="panel"><h3>Reach per partner <span>(people reached)</span></h3><div class="ch"><canvas id="c-partner"></canvas></div></div>
   </section>
 
   <section class="reach-block">
@@ -517,9 +517,9 @@ function initCharts(){
   const dlBarInside={anchor:"center",align:"center",color:"#fff",font:{weight:"600",size:11},
     formatter:v=>v>0?v.toLocaleString("en-US"):"" };
   const dlHoriz={anchor:"end",align:"right",color:"#1c2733",font:{weight:"600",size:11},
-    clamp:true, formatter:v=>v>0?v:"" };
+    clamp:true, formatter:v=>v>0?v.toLocaleString("en-US"):"" };
   const dlPie={color:"#fff",font:{weight:"700",size:13},
-    formatter:(v,ctx)=>{const t=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return v>0?v:"";}};
+    formatter:(v,ctx)=>{return v>0?v.toLocaleString("en-US"):"";}};
 
   charts.cat=new Chart($("c-cat"),{type:"bar",
     data:{labels:[],datasets:[{data:[],backgroundColor:"#123a6d",borderRadius:4,maxBarThickness:42}]},
@@ -596,8 +596,10 @@ function updateCharts(data){
   charts.cat.data.datasets[0].backgroundColor=catSorted.map((_,i)=>PALETTE[i%PALETTE.length]);
   charts.cat.update("none");
 
-  const comm=data.filter(r=>r.type==="Communication").length;
-  charts.type.data.datasets[0].data=[comm,data.length-comm];
+  // Communication vs Dissemination — by REACH (people reached), not activity count
+  const commReach=data.filter(r=>r.type==="Communication").reduce((s,r)=>s+(r.reach||0),0);
+  const dissReach=data.filter(r=>r.type==="Dissemination").reduce((s,r)=>s+(r.reach||0),0);
+  charts.type.data.datasets[0].data=[commReach,dissReach];
   charts.type.update("none");
 
   const periods=uniq(ROWS,"period").sort();
@@ -606,9 +608,10 @@ function updateCharts(data){
   charts.period.data.datasets[1].data=periods.map(p=>data.filter(r=>r.period===p&&r.type==="Dissemination").reduce((s,r)=>s+r.reach,0));
   charts.period.update("none");
 
+  // Reach per partner — sum of people reached per partner, not activity count
   const pc={};
   PARTNERS.forEach(p=>pc[p]=0);
-  data.forEach(r=>pc[r.partner]=(pc[r.partner]||0)+1);
+  data.forEach(r=>pc[r.partner]=(pc[r.partner]||0)+(r.reach||0));
   const pSorted=Object.entries(pc).sort((a,b)=>b[1]-a[1]);
   charts.partner.data.labels=pSorted.map(x=>x[0]);
   charts.partner.data.datasets[0].data=pSorted.map(x=>x[1]);
