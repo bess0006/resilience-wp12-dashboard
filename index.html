@@ -234,7 +234,7 @@
       </label>
     </div>
     <div class="charts2">
-      <div class="panel"><h3>Total reach per touchpoint <span>(communication channel)</span></h3><div class="ch"><canvas id="c-touch"></canvas></div></div>
+      <div class="panel"><h3>Total reach per touchpoint <span>(per Tracking-File sheet)</span></h3><div class="ch"><canvas id="c-touch"></canvas></div></div>
       <div class="panel"><h3>Reach per social media account</h3><div class="ch"><canvas id="c-social"></canvas></div></div>
     </div>
     <div class="charts2">
@@ -642,8 +642,9 @@ function updateReachCharts(data){
   const rp=$("reach-period")?$("reach-period").value:"";
   const d=rp?data.filter(r=>r.period===rp):data;
 
-  // 1. reach per touchpoint (communication category / "How") — communication rows
-  paintBar(charts.touch, reachBy(d.filter(r=>r.type==="Communication"), r=>r.cat));
+  // 1. reach per touchpoint = reach per Tracking-File sheet (Communication Activities,
+  //    Events, Social Media, Website, Presence in the Media, Flyers, Personal contacts)
+  paintBar(charts.touch, reachBy(d, r=>r.tab));
   // 2. reach per social media account (Social Media tab, channel column)
   paintBar(charts.social, reachBy(d.filter(r=>r.tab==="Social Media"), r=>r.channel));
   // 3. reach per RESILIENCE target audience
